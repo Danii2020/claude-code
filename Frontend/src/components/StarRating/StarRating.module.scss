@@ -43,6 +43,21 @@
     white-space: nowrap;
   }
 
+  // Interactive mode
+  &.interactive {
+    .interactiveStar {
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+      transition: transform 0.15s ease;
+
+      &:hover {
+        transform: scale(1.2);
+      }
+    }
+  }
+
   // Size variants
   &.small {
     .star svg {

@@ -3,8 +3,8 @@
  * Tests unitarios para el componente de calificación con estrellas
  */
 
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { StarRating } from '../StarRating';
 
@@ -182,6 +182,62 @@ describe('StarRating Component', () => {
       render(<StarRating rating={4.5} readonly={true} showCount={true} totalRatings={50} />);
 
       expect(screen.getByText('(50)')).toBeInTheDocument();
+    });
+  });
+
+  describe('Interactive Mode', () => {
+    it('renders buttons when onRate is provided and not readonly', () => {
+      const onRate = vi.fn();
+      const { container } = render(<StarRating rating={0} onRate={onRate} />);
+
+      const buttons = container.querySelectorAll('button');
+      expect(buttons).toHaveLength(5);
+    });
+
+    it('does not render buttons when readonly even with onRate', () => {
+      const onRate = vi.fn();
+      const { container } = render(<StarRating rating={3} readonly={true} onRate={onRate} />);
+
+      const buttons = container.querySelectorAll('button');
+      expect(buttons).toHaveLength(0);
+    });
+
+    it('calls onRate with correct star value on click', () => {
+      const onRate = vi.fn();
+      render(<StarRating rating={0} onRate={onRate} />);
+
+      const star4 = screen.getByRole('button', { name: 'Rate 4 stars' });
+      fireEvent.click(star4);
+      expect(onRate).toHaveBeenCalledWith(4);
+    });
+
+    it('uses role="group" when interactive', () => {
+      const onRate = vi.fn();
+      render(<StarRating rating={0} onRate={onRate} />);
+
+      expect(screen.getByRole('group')).toBeInTheDocument();
+    });
+
+    it('applies interactive class when interactive', () => {
+      const onRate = vi.fn();
+      const { container } = render(<StarRating rating={0} onRate={onRate} />);
+
+      expect(container.firstChild).toHaveClass('interactive');
+    });
+
+    it('highlights stars on hover', () => {
+      const onRate = vi.fn();
+      render(<StarRating rating={0} onRate={onRate} />);
+
+      const star3 = screen.getByRole('button', { name: 'Rate 3 stars' });
+      fireEvent.mouseEnter(star3);
+
+      // Stars 1-3 should be full, 4-5 empty
+      expect(star3).toHaveClass('full');
+
+      fireEvent.mouseLeave(star3);
+      // After leaving, should revert to original rating (0)
+      expect(star3).toHaveClass('empty');
     });
   });
 });

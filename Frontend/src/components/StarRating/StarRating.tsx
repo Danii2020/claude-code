@@ -1,8 +1,11 @@
+'use client';
+
 /**
  * StarRating Component
- * Componente de calificación con estrellas (modo readonly para lista de cursos)
+ * Componente de calificación con estrellas (readonly o interactivo)
  */
 
+import { useState } from 'react';
 import styles from './StarRating.module.scss';
 
 interface StarRatingProps {
@@ -11,6 +14,7 @@ interface StarRatingProps {
   showCount?: boolean; // Mostrar contador de ratings
   size?: 'small' | 'medium' | 'large'; // Tamaño visual
   readonly?: boolean; // Modo solo lectura
+  onRate?: (rating: number) => void; // Callback al calificar (activa modo interactivo)
   className?: string; // Clase CSS adicional
 }
 
@@ -63,13 +67,18 @@ export const StarRating = ({
   showCount = false,
   size = 'medium',
   readonly = false,
+  onRate,
   className = '',
 }: StarRatingProps) => {
+  const [hoverRating, setHoverRating] = useState(0);
+  const isInteractive = !readonly && !!onRate;
+
   /**
    * Determina el estado de relleno de cada estrella
    */
   const getStarFillState = (starIndex: number): 'empty' | 'half' | 'full' => {
-    const currentRating = Math.max(0, Math.min(5, rating)); // Clamp 0-5
+    const displayRating = isInteractive && hoverRating > 0 ? hoverRating : rating;
+    const currentRating = Math.max(0, Math.min(5, displayRating)); // Clamp 0-5
 
     if (currentRating >= starIndex) return 'full';
     if (currentRating >= starIndex - 0.5) return 'half';
@@ -79,23 +88,46 @@ export const StarRating = ({
   // Formatear el rating para mostrar (1 decimal)
   const formattedRating = rating.toFixed(1);
 
+  const handleStarClick = (star: number) => {
+    if (isInteractive) {
+      onRate(star);
+    }
+  };
+
   return (
     <div
-      className={`${styles.starRating} ${styles[size]} ${className}`}
-      role="img"
-      aria-label={`Rating: ${formattedRating} out of 5 stars${
-        showCount && totalRatings > 0 ? `, ${totalRatings} ratings` : ''
-      }`}
+      className={`${styles.starRating} ${styles[size]} ${isInteractive ? styles.interactive : ''} ${className}`}
+      role={isInteractive ? 'group' : 'img'}
+      aria-label={isInteractive
+        ? `Rate this course`
+        : `Rating: ${formattedRating} out of 5 stars${
+            showCount && totalRatings > 0 ? `, ${totalRatings} ratings` : ''
+          }`
+      }
     >
       <div className={styles.stars}>
         {[1, 2, 3, 4, 5].map((star) => (
-          <span
-            key={star}
-            className={`${styles.star} ${styles[getStarFillState(star)]}`}
-            aria-hidden="true"
-          >
-            <StarIcon fillState={getStarFillState(star)} />
-          </span>
+          isInteractive ? (
+            <button
+              key={star}
+              type="button"
+              className={`${styles.star} ${styles[getStarFillState(star)]} ${styles.interactiveStar}`}
+              onMouseEnter={() => setHoverRating(star)}
+              onMouseLeave={() => setHoverRating(0)}
+              onClick={() => handleStarClick(star)}
+              aria-label={`Rate ${star} star${star !== 1 ? 's' : ''}`}
+            >
+              <StarIcon fillState={getStarFillState(star)} />
+            </button>
+          ) : (
+            <span
+              key={star}
+              className={`${styles.star} ${styles[getStarFillState(star)]}`}
+              aria-hidden="true"
+            >
+              <StarIcon fillState={getStarFillState(star)} />
+            </span>
+          )
         ))}
       </div>
 
