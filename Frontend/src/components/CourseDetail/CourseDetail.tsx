@@ -1,6 +1,7 @@
 import { FC } from "react";
 import Link from "next/link";
 import { CourseDetail } from "@/types";
+import { CourseRatingSection } from "@/components/CourseRating/CourseRating";
 import styles from "./CourseDetail.module.scss";
 
 interface CourseDetailComponentProps {
@@ -37,6 +38,13 @@ export const CourseDetailComponent: FC<CourseDetailComponentProps> = ({ course }
           </div>
         </div>
       </div>
+
+      <CourseRatingSection
+        courseId={course.id}
+        initialAverageRating={course.average_rating ?? 0}
+        initialTotalRatings={course.total_ratings ?? 0}
+        initialDistribution={course.rating_distribution ?? { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }}
+      />
 
       <div className={styles.classesSection}>
         <h2 className={styles.sectionTitle}>Contenido del curso</h2>

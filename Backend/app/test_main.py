@@ -12,14 +12,18 @@ MOCK_COURSES_LIST = [
         "name": "Curso de React",
         "description": "Aprende React desde cero",
         "thumbnail": "https://via.placeholder.com/150",
-        "slug": "curso-de-react"
+        "slug": "curso-de-react",
+        "average_rating": 4.2,
+        "total_ratings": 5
     },
     {
         "id": 2,
         "name": "Curso de Python",
         "description": "Domina Python paso a paso",
         "thumbnail": "https://via.placeholder.com/200",
-        "slug": "curso-de-python"
+        "slug": "curso-de-python",
+        "average_rating": 3.75,
+        "total_ratings": 4
     }
 ]
 
@@ -29,6 +33,9 @@ MOCK_COURSE_DETAIL = {
     "description": "Aprende React desde cero",
     "thumbnail": "https://via.placeholder.com/150",
     "slug": "curso-de-react",
+    "average_rating": 4.2,
+    "total_ratings": 5,
+    "rating_distribution": {"1": 0, "2": 0, "3": 1, "4": 2, "5": 2},
     "teacher_id": [1, 2],
     "classes": [
         {
@@ -229,8 +236,8 @@ class TestContractCompliance:
         response = client.get("/courses")
         data = response.json()
         
-        expected_fields = {"id", "name", "description", "thumbnail", "slug"}
-        
+        expected_fields = {"id", "name", "description", "thumbnail", "slug", "average_rating", "total_ratings"}
+
         for course in data:
             # Verify no extra fields beyond contract
             actual_fields = set(course.keys())
@@ -244,7 +251,7 @@ class TestContractCompliance:
         data = response.json()
         
         # Verify main course fields
-        expected_course_fields = {"id", "name", "description", "thumbnail", "slug", "teacher_id", "classes"}
+        expected_course_fields = {"id", "name", "description", "thumbnail", "slug", "average_rating", "total_ratings", "rating_distribution", "teacher_id", "classes"}
         actual_course_fields = set(data.keys())
         assert actual_course_fields == expected_course_fields
         
@@ -262,7 +269,9 @@ class TestContractCompliance:
                 "name": "Curso de React",
                 "description": "Curso de React",
                 "thumbnail": "https://via.placeholder.com/150",
-                "slug": "curso-de-react"
+                "slug": "curso-de-react",
+                "average_rating": 4.2,
+                "total_ratings": 5
             }
         ]
         

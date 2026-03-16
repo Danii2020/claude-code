@@ -23,6 +23,7 @@ export interface RatingRequest {
 export interface RatingStats {
   average_rating: number; // 0.0 - 5.0
   total_ratings: number; // Cantidad total
+  rating_distribution?: Record<number, number>; // {1: count, 2: count, ...}
 }
 
 // Estados de UI para operaciones de rating
@@ -69,13 +70,22 @@ export function isRatingStats(obj: unknown): obj is RatingStats {
 
   const candidate = obj as Record<string, unknown>;
 
-  return (
+  const hasValidBase =
     typeof candidate.average_rating === 'number' &&
     candidate.average_rating >= 0 &&
     candidate.average_rating <= 5 &&
     typeof candidate.total_ratings === 'number' &&
-    candidate.total_ratings >= 0
-  );
+    candidate.total_ratings >= 0;
+
+  if (!hasValidBase) return false;
+
+  if (candidate.rating_distribution !== undefined) {
+    if (typeof candidate.rating_distribution !== 'object' || candidate.rating_distribution === null) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 /**

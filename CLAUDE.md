@@ -1,155 +1,128 @@
-# Platziflix - Proyecto Multi-plataforma
+# CLAUDE.md
 
-## Arquitectura del Sistema
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Platziflix es una plataforma de cursos online con arquitectura multi-plataforma que incluye:
-- **Backend**: API REST con FastAPI + PostgreSQL
-- **Frontend**: Aplicación web con Next.js 15
-- **Mobile**: Apps nativas Android (Kotlin) + iOS (Swift)
+## Project Overview
 
-## Stack Tecnológico
+Platziflix is a multi-platform online course platform (Netflix-style) with a Backend API, a web Frontend, and native mobile apps for Android and iOS.
 
-### Backend (FastAPI/Python)
-- **Framework**: FastAPI
-- **Base de datos**: PostgreSQL 15
-- **ORM**: SQLAlchemy 2.0
-- **Migraciones**: Alembic
-- **Container**: Docker + Docker Compose
-- **Gestión dependencias**: UV
-- **Puerto**: 8000
+## Commands
 
-### Frontend (Next.js)
-- **Framework**: Next.js 15 (App Router)
-- **React**: 19.0
-- **Lenguaje**: TypeScript
-- **Estilos**: SCSS + CSS Modules
-- **Testing**: Vitest + React Testing Library
-- **Fonts**: Geist Sans & Geist Mono
-
-### Mobile
-- **Android**: Kotlin + Jetpack Compose + Retrofit
-- **iOS**: Swift + SwiftUI + Repository Pattern
-
-## Estructura del Proyecto
-
-```
-claude-code/
-├── Backend/           # API FastAPI + PostgreSQL
-├── Frontend/          # Next.js 15 App
-└── Mobile/
-    ├── PlatziFlixAndroid/  # Kotlin App
-    └── PlatziFlixiOS/      # Swift App
-```
-
-## Modelo de Datos
-
-### Entidades Principales
-- **Course**: Cursos (name, description, thumbnail, slug)
-- **Teacher**: Profesores
-- **Lesson**: Lecciones de un curso
-- **Class**: Clases individuales de una lección
-
-### Relaciones
-- Course ↔ Teacher (Many-to-Many via course_teachers)
-- Course → Lesson (One-to-Many)
-- Lesson → Class (One-to-Many)
-
-## API Endpoints
-
-- `GET /` - Bienvenida
-- `GET /health` - Health check + DB connectivity
-- `GET /courses` - Lista todos los cursos
-- `GET /courses/{slug}` - Detalle de curso por slug
-
-## Comandos de Desarrollo
-
+Any command you run should be inside the API Docker container, before running it, make sure the container       
+  is running and review the @Makefile with the existing commands and use them.  
 ### Backend
+
+**All backend commands must run from `Backend/` and execute inside Docker containers. Always verify the container is running before executing commands.**
+
 ```bash
 cd Backend
-make start        # Iniciar Docker Compose
-make stop         # Detener containers
-make migrate      # Ejecutar migraciones
-make seed         # Poblar datos de prueba
-make logs         # Ver logs
+make start             # Start Docker Compose (API + PostgreSQL)
+make stop              # Stop containers
+make build             # Rebuild Docker images
+make logs              # Tail container logs
+make clean             # Remove containers, volumes, and images
+
+make migrate           # Apply Alembic migrations
+make create-migration  # Interactively create a new Alembic migration
+make seed              # Populate sample data
+make seed-fresh        # Clear all data and reseed
+```
+
+To run backend tests (inside the API container):
+```bash
+docker-compose exec api bash -c "cd /app && uv run pytest"
+docker-compose exec api bash -c "cd /app && uv run pytest app/tests/test_rating_endpoints.py"
+docker-compose exec api bash -c "cd /app && uv run pytest app/tests/test_course_rating_service.py::TestClassName::test_method_name"
 ```
 
 ### Frontend
+
 ```bash
 cd Frontend
-yarn dev          # Servidor de desarrollo
-yarn build        # Build de producción
-yarn test         # Ejecutar tests
-yarn lint         # Linter
+yarn dev       # Dev server with Turbopack on port 3000
+yarn build     # Production build
+yarn lint      # ESLint
+yarn test      # Run all tests (Vitest)
+yarn test src/components/StarRating  # Run tests for a specific file/directory
 ```
 
-## URLs del Sistema
+## Architecture
 
-- **Backend API**: http://localhost:8000
-- **Frontend Web**: http://localhost:3000
-- **API Docs**: http://localhost:8000/docs (FastAPI Swagger)
+### System Data Flow
 
-## Base de Datos
+```
+Browser / Android / iOS
+        │
+        │ HTTP REST (JSON)
+        ▼
+FastAPI (port 8000) → CourseService → SQLAlchemy → PostgreSQL
+        │
+        └── All clients use the API as the single source of truth
+```
 
-### Configuración Docker
-- **Usuario**: platziflix_user
-- **Password**: platziflix_password
-- **Database**: platziflix_db
-- **Puerto**: 5432
+### Backend (FastAPI + SQLAlchemy)
 
-### Migraciones
-- Ubicación: `Backend/app/alembic/versions/`
-- Comando crear: `make create-migration`
-- Comando aplicar: `make migrate`
+All route handlers live in `app/main.py` and depend on `CourseService` (injected via `get_course_service()`). Business logic lives entirely in `app/services/course_service.py` — routes are thin wrappers.
 
-## Funcionalidades Implementadas
+**Soft deletes are used everywhere.** All models inherit `BaseModel` (`app/models/base.py`) which includes `deleted_at`. The rating uniqueness constraint is `UNIQUE(course_id, user_id, deleted_at)` specifically to allow a user to re-rate after deleting.
 
-- ✅ Catálogo de cursos con grid estilo Netflix
-- ✅ Detalle de cursos (profesores, lecciones, clases)
-- ✅ Navegación por slug SEO-friendly
-- ✅ Reproductor de video integrado
-- ✅ Health checks de API y DB
-- ✅ Apps móviles nativas (Android + iOS)
-- ✅ Testing en todos los componentes
+Key entities:
+- `Course` — has `average_rating`/`total_ratings` as computed Python properties from active `CourseRating` rows
+- `CourseRating` — rating 1–5 with CHECK constraint enforced at DB level
+- `Lesson` and `Class` — both exist as separate tables with identical structure (not consolidated)
+- `course_teachers` — association table for the Course ↔ Teacher many-to-many
 
-## Patrones de Desarrollo
+DB connection string: `postgresql://platziflix_user:platziflix_password@db:5432/platziflix_db`
 
-### Backend
-- **Arquitectura**: Service Layer Pattern
-- **Dependency Injection**: FastAPI Dependencies
-- **Database**: Repository Pattern con SQLAlchemy
+### Frontend (Next.js 15)
 
-### Frontend
-- **Routing**: Next.js App Router
-- **Data Fetching**: Server Components + fetch
-- **Styling**: CSS Modules + SCSS
-- **Testing**: Component testing con Vitest
+The app uses **Server Components exclusively for data fetching** — there is no client-side state manager (no Redux, no Zustand). Every page fetches with `cache: "no-store"` directly from `http://localhost:8000`.
+
+Route structure mirrors the API:
+- `/` → `app/page.tsx` — course catalog grid
+- `/course/[slug]` → `app/course/[slug]/page.tsx` — course detail (slug-based, SEO-friendly)
+- `/classes/[class_id]` → `app/classes/[class_id]/page.tsx` — video player
+
+Each dynamic route has companion `error.tsx`, `loading.tsx`, and `not-found.tsx` files.
+
+SCSS design tokens are defined in `src/styles/vars.scss` and **auto-imported** into every component stylesheet via `next.config.ts` `prependData`. Access colors with the `color('primary')` SCSS function — do not hardcode hex values.
+
+The `src/services/ratingsApi.ts` client is the only place that handles ratings CRUD from the client side and includes a 10-second fetch timeout wrapper.
+
+### Mobile (Android + iOS)
+
+Both apps share the same three-layer Clean Architecture:
+
+```
+Presentation  →  ViewModel (state/events)  →  View (Compose / SwiftUI)
+Domain        →  Repository interface      →  Domain models
+Data          →  RemoteCourseRepository    →  DTOs + Mappers
+```
+
+Mappers (e.g., `CourseMapper`) are the only place where DTOs are converted to domain models. ViewModels hold all UI state; Views are stateless.
+
+- **Android**: Uses `StateFlow<CourseListUiState>` + sealed `CourseListUiEvent`. Base URL is `http://10.0.2.2:8000/` (emulator localhost).
+- **iOS**: Uses `@Published` properties + `@MainActor` + `async/await`. Base URL is `http://localhost:8000`. No third-party dependencies — pure URLSession + Codable.
+
+Both apps currently only implement the course list screen. Course detail navigation is a TODO.
+
+## Key Conventions
+
+### Python / FastAPI
+- Use `def` for sync, `async def` for I/O-bound operations
+- Type-hint all function signatures; use Pydantic models for all input/output (not raw dicts)
+- Error handling: guard clauses first, early returns for error paths, happy path last
+- Use `HTTPException` for expected errors; no bare `except` blocks
+- Naming: `snake_case` for files/variables/functions, `PascalCase` for classes
+
+### TypeScript / Next.js
+- Strict TypeScript — no `any`
+- Path alias `@/*` maps to `src/*`
+- CSS Modules for all component styles; global tokens via `vars.scss`
+- Type guards in `src/types/rating.ts` must be used when validating API responses
 
 ### Mobile
-- **Android**: MVVM + Jetpack Compose
-- **iOS**: SwiftUI + Repository + Mapper Pattern
-
-## Consideraciones de Desarrollo
-
-1. **Docker obligatorio** para el backend (DB + API)
-2. **TypeScript strict** en Frontend
-3. **Testing requerido** para nuevas funcionalidades
-4. **Migraciones automáticas** para cambios de DB
-5. **Convenciones de naming**: snake_case (Python), camelCase (JS/TS), PascalCase (Swift/Kotlin)
-6. **API REST** como única fuente de datos para Frontend/Mobile
-
-## Comandos Útiles
-
-```bash
-# Desarrollo completo
-cd Backend && make start    # Iniciar backend
-cd Frontend && yarn dev     # Iniciar frontend
-
-# Reset completo de datos
-cd Backend && make seed-fresh
-
-# Ver logs de todos los servicios
-cd Backend && make logs
-```
-
-Esta memoria contiene toda la información necesaria para continuar el desarrollo del proyecto Platziflix.
-- Cualquier comando que necesites ejecutar para el Backend debe ser dentro del contenedor de docker API, antes de ejecutarlo certifica que esté funcionando el contenedor y revisa el archivo makefile con los comandos que existen y úsalos
+- DTOs reflect the raw API shape (including `deleted_at`, `created_at`, etc.)
+- Domain models contain only what the UI needs — keep them lean
+- Kotlin: `PascalCase` for classes, `camelCase` for functions/properties
+- Swift: `PascalCase` for types, `camelCase` for functions/properties
